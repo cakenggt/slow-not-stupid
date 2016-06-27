@@ -12,7 +12,7 @@ class It {
     if (des){
       this.lat = des.lat;
       this.lon = des.lon;
-      this.chain = des.chain;
+      this.chain = JSON.parse(des.chain);
       this.uuid = des.uuid;
     }
     else{
