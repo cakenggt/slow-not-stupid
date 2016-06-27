@@ -1,0 +1,24 @@
+{
+  "name": "slow-not-stupid",
+  "version": "0.1.0",
+  "description": "Slow, not stupid",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cakenggt/slow-not-stupid.git"
+  },
+  "author": "Alec Lownes",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/cakenggt/slow-not-stupid/issues"
+  },
+  "homepage": "https://github.com/cakenggt/slow-not-stupid#readme",
+  "private": true,
+  "dependencies": {
+    "passport": "^0.3.2",
+    "passport-google-oauth": "^1.0.0"
+  }
+}
