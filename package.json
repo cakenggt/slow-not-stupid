@@ -18,7 +18,9 @@
   "homepage": "https://github.com/cakenggt/slow-not-stupid#readme",
   "private": true,
   "dependencies": {
-    "passport": "^0.3.2",
-    "passport-google-oauth": "^1.0.0"
+    "body-parser": "^1.15.2",
+    "express": "^4.14.0",
+    "google-id-token-verifier": "^0.1.2",
+    "node-uuid": "^1.4.7"
   }
 }
