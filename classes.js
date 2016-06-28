@@ -15,12 +15,14 @@ class It {
       this.lat = des.lat;
       this.lon = des.lon;
       this.chain = JSON.parse(des.chain);
+      this.killed = JSON.parse(des.killed);
       this.uuid = des.uuid;
     }
     else{
       this.lat = 40.803333;
       this.lon = -76.341667;
-      this.chain = [];//chain of sub values
+      this.chain = [];
+      this.killed = [];
       this.uuid = uuid.v4();
     }
   }
@@ -48,6 +50,15 @@ class It {
     }
     else{
       return false;
+    }
+  }
+
+  getTarget(){
+    if (this.chain.length){
+      return this.chain[this.chain.length-1].id;
+    }
+    else{
+      return null;
     }
   }
 
@@ -86,6 +97,24 @@ class It {
     this.lat = toDegrees(Math.atan2(z, Math.sqrt(x*x+y*y)));
     this.lon = toDegrees(Math.atan2(y, x));
   }
+
+  getRandomName(){
+    let names = [];
+    if (this.chain.length || this.killed.length){
+      let lists = [];
+      if (this.chain.length){
+        lists.push(this.chain);
+      }
+      if (this.killed.length){
+        lists.push(this.killed);
+      }
+      let list = lists[Math.floor(Math.random()*lists.length)];
+      return list[Math.floor(Math.random()*list.length)].name;
+    }
+    else{
+      return "Jay";
+    }
+  }
 }
 
 function toRadians(num){
@@ -95,3 +124,5 @@ function toRadians(num){
 function toDegrees(num){
   return num/(Math.PI*2)*360;
 }
+
+exports.It = It;
