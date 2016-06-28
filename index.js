@@ -44,7 +44,7 @@ app.post('/location', function(req, res){
     res.end();
     return;
   }
-  pg.connect(credentials.POSTGRES_CONNECTION_STRING, function(err, client, done){
+  pg.connect(credentials.DATABASE_URL, function(err, client, done){
     if (err){
       done();
       return console.error('error fetching client from pool', err);
@@ -81,7 +81,7 @@ app.post('/location', function(req, res){
   res.end();
 });
 
-pg.connect(credentials.POSTGRES_CONNECTION_STRING, function(err, client, done){
+pg.connect(credentials.DATABASE_URL, function(err, client, done){
   if (err){
     done();
     return console.error('error fetching client from pool', err);
@@ -101,7 +101,7 @@ pg.connect(credentials.POSTGRES_CONNECTION_STRING, function(err, client, done){
 
 //Every 5 seconds save all its
 setInterval(function(){
-  pg.connect(credentials.POSTGRES_CONNECTION_STRING, function(err, client, done){
+  pg.connect(credentials.DATABASE_URL, function(err, client, done){
     if (err){
       done();
       return console.error('error fetching client from pool', err);
