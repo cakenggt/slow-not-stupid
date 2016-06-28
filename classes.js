@@ -5,10 +5,6 @@ let uuid = require('node-uuid');
 
 const SPEED_PER_TICK = 84;//meters/5minutes
 
-class User {
-
-}
-
 class It {
   constructor(des){
     if (des){

@@ -235,13 +235,14 @@ function updateIt(client, it, callback){
 }
 
 function createUser(client, user, callback){
-  client.query("insert into users (id, name, lat, lon) values ($1, $2, $3, $4)",
-  [user.id, user.name, user.lat, user.lon], callback);
+  client.query("insert into users (id, name, lat, lon, killed) "+
+  "values ($1, $2, $3, $4, $5)",
+  [user.id, user.name, user.lat, user.lon, user.killed], callback);
 }
 
 function updateUser(client, user, callback){
-  client.query("update users set lat = $1, lon = $2 where id = $3",
-  [user.lat, user.lon, user.id], callback);
+  client.query("update users set lat = $1, lon = $2, killed = $3 where id = $4",
+  [user.lat, user.lon, user.killed, user.id], callback);
 }
 
 function getUser(client, id, callback){
