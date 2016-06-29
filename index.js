@@ -142,7 +142,11 @@ app.post('/create', function(req, res){
       }
       it.lat = lat;
       it.lon = lon;
-      it.chain.push({id: row.id, name: row.name, time: new Date().getTime()});
+      it.chain.push({
+        id: row.id,
+        name: row.name,
+        time: new Date().getTime()
+      });
       createIt(client, it, function(err){
         if (err){
           console.error('error executing query', err);
@@ -153,6 +157,34 @@ app.post('/create', function(req, res){
         its.push(it);
       });
     });
+  });
+});
+
+app.post('/infect', function(req, res){
+  let profile = req.profile;
+  if (!profile){
+    res.status(400);
+    res.end();
+    return;
+  }
+  let id = req.body.id;
+  let user = {id: id};
+  pg.connect(credentials.DATABASE_URL, function(err, client, done){
+    if (err){
+      done();
+      return console.error('error fetching client from pool', err);
+    }
+    for (let i = 0; i < its.length; i++){
+      let it = its[i];
+      if (it.isFollowing(user)){
+        it.chain.push({
+          id: profile.sed,
+          name: profile.name,
+          time: new Date().getTime()
+        });
+        updateIt(client, it);
+      }
+    }
   });
 });
 
