@@ -174,10 +174,12 @@ app.post('/create', function(req, res){
           res.status(500);
           res.end();
           done();
+          return;
         }
         res.status(200);
         res.end();
         its.push(it);
+        done();
       });
     });
   });
@@ -197,6 +199,7 @@ app.post('/infect', function(req, res){
       done();
       return console.error('error fetching client from pool', err);
     }
+    let promises = [];
     for (let i = 0; i < its.length; i++){
       let it = its[i];
       if (it.isFollowing(user)){
@@ -205,9 +208,12 @@ app.post('/infect', function(req, res){
           name: profile.name,
           time: new Date().getTime()
         });
-        updateIt(client, it);
+        promises.push(updateIt(client, it));
       }
     }
+    Promise.all(promises).then(function(){
+      done();
+    });
   });
   res.end();
 });
