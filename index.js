@@ -9,6 +9,7 @@ const pg = require('pg');
 const http = require('http').Server(app);
 const verifier = require('google-id-token-verifier');
 const classes = require('./classes');
+const argv = require('yargs').argv;
 
 const KILL_DISTANCE = 5;
 const IT_TIME_STEP = 300000;
@@ -21,20 +22,33 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 //custom middleware
-app.use(function(req, res, next){
-  if (req.body.token){
-    let token = req.body.token;
-    verifier.verify(token, credentials.APP_CLIENT_ID, function(err, tokenInfo){
-      if (!err){
-        req.profile = tokenInfo;
-      }
-      next();
-    });
-  }
-  else{
+if (argv.DEVELOPMENT || argv.DEV || argv.D){
+  console.log('Starting in Development mode');
+  app.use(function(req, res, next){
+    req.profile = {
+      sub: req.body.token,
+      name: req.body.token
+    };
     next();
-  }
-});
+  });
+}
+else{
+  app.use(function(req, res, next){
+    if (req.body.token){
+      let token = req.body.token;
+      verifier.verify(token, credentials.APP_CLIENT_ID, function(err, tokenInfo){
+        if (!err){
+          req.profile = tokenInfo;
+        }
+        next();
+      });
+    }
+    else{
+      next();
+    }
+  });
+}
+
 
 http.listen((process.env.PORT || 3000), function(){
   console.log('Example app listening on port 3000!');
@@ -43,6 +57,11 @@ http.listen((process.env.PORT || 3000), function(){
 app.post('/location', function(req, res){
   let profile = req.profile;
   if (!profile){
+    res.status(400);
+    res.end();
+    return;
+  }
+  if (req.body.lat === undefined || req.body.lon === undefined){
     res.status(400);
     res.end();
     return;
@@ -122,6 +141,8 @@ app.post('/create', function(req, res){
         return;
       }
       if (!result.rows.length){
+        res.status(500);
+        res.end();
         done();
         return;
       }
@@ -154,6 +175,8 @@ app.post('/create', function(req, res){
           res.end();
           done();
         }
+        res.status(200);
+        res.end();
         its.push(it);
       });
     });
@@ -178,7 +201,7 @@ app.post('/infect', function(req, res){
       let it = its[i];
       if (it.isFollowing(user)){
         it.chain.push({
-          id: profile.sed,
+          id: profile.sub,
           name: profile.name,
           time: new Date().getTime()
         });
@@ -186,6 +209,7 @@ app.post('/infect', function(req, res){
       }
     }
   });
+  res.end();
 });
 
 pg.connect(credentials.DATABASE_URL, function(err, client, done){
@@ -215,18 +239,22 @@ setInterval(function(){
       done();
       return console.error('error fetching client from pool', err);
     }
+    let promises = [];
     for (let i = 0; i < its.length; i++){
       let it = its[i];
       let target = it.getTarget();
       if (target){
-        itLogic(client, it, target);
+        itLogic(client, it, target, promises);
       }
     }
+    Promise.all(promises).then(function(){
+      done();
+    });
   });
 }, IT_TIME_STEP);
 
-function itLogic(client, it, target){
-  getUser(client, target, function(err, result){
+function itLogic(client, it, target, promises){
+  promises.push(getUser(client, target, function(err, result){
     if (err || !result.rows){
       if (err){
         console.error('error executing query', err);
@@ -245,41 +273,56 @@ function itLogic(client, it, target){
         time: new Date().getTime()
       });
       row.killed++;
-      updateUser(client, row, simpleErrorLog);
+      promises.push(updateUser(client, row, simpleErrorLog));
     }
     else{
       it.moveTowards(row);
     }
-    updateIt(client, it, simpleErrorLog);
-  });
+    promises.push(updateIt(client, it, simpleErrorLog));
+  }));
 }
 
 function createIt(client, it, callback){
-  client.query("insert into it (lat, lon, chain, killed, uuid) values "+
-  "($1, $2, $3, $4, $5)", [it.lat, it.lon, JSON.stringify(it.chain),
-    JSON.stringify(it.killed), it.uuid], callback);
+  return new Promise(function(resolve, reject){
+    client.query("insert into it (lat, lon, chain, killed, uuid) values "+
+    "($1, $2, $3, $4, $5)", [it.lat, it.lon, JSON.stringify(it.chain),
+      JSON.stringify(it.killed), it.uuid], callback);
+    resolve();
+  });
 }
 
 function updateIt(client, it, callback){
-  client.query("update it set lat = $1, lon = $2, chain = $3, killed = $4 "+
-  "where uuid = $5", [it.lat, it.lon, JSON.stringify(it.chain),
-    JSON.stringify(it.killed), it.uuid], callback);
+  return new Promise(function(resolve, reject){
+    client.query("update it set lat = $1, lon = $2, chain = $3, killed = $4 "+
+    "where uuid = $5", [it.lat, it.lon, JSON.stringify(it.chain),
+      JSON.stringify(it.killed), it.uuid], callback);
+    resolve();
+  });
 }
 
 function createUser(client, user, callback){
-  client.query("insert into users (id, name, lat, lon, killed) "+
-  "values ($1, $2, $3, $4, $5)",
-  [user.id, user.name, user.lat, user.lon, user.killed], callback);
+  return new Promise(function(resolve, reject){
+    client.query("insert into users (id, name, lat, lon, killed) "+
+    "values ($1, $2, $3, $4, $5)",
+    [user.id, user.name, user.lat, user.lon, user.killed], callback);
+    resolve();
+  });
 }
 
 function updateUser(client, user, callback){
-  client.query("update users set lat = $1, lon = $2, killed = $3 where id = $4",
-  [user.lat, user.lon, user.killed, user.id], callback);
+  return new Promise(function(resolve, reject){
+    client.query("update users set lat = $1, lon = $2, killed = $3 where id = $4",
+    [user.lat, user.lon, user.killed, user.id], callback);
+    resolve();
+  });
 }
 
 function getUser(client, id, callback){
-  client.query("select * from users where id = $1",
-  [id], callback);
+  return new Promise(function(resolve, reject){
+    client.query("select * from users where id = $1",
+    [id], callback);
+    resolve();
+  });
 }
 
 function simpleErrorLog(err){
