@@ -39,12 +39,21 @@ else{
       verifier.verify(token, credentials.APP_CLIENT_ID, function(err, tokenInfo){
         if (!err){
           req.profile = tokenInfo;
+          next();
         }
-        next();
+        else{
+          res.json({
+            "errors": ['Invalid token']
+          });
+          res.end();
+        }
       });
     }
     else{
-      next();
+      res.json({
+        "errors": ['Missing token']
+      });
+      res.end();
     }
   });
 }
@@ -56,13 +65,10 @@ http.listen((process.env.PORT || 3000), function(){
 
 app.post('/location', function(req, res){
   let profile = req.profile;
-  if (!profile){
-    res.status(400);
-    res.end();
-    return;
-  }
   if (req.body.lat === undefined || req.body.lon === undefined){
-    res.status(400);
+    res.json({
+      "errors": ['Missing location data']
+    });
     res.end();
     return;
   }
@@ -79,6 +85,10 @@ app.post('/location', function(req, res){
   };
   pg.connect(credentials.DATABASE_URL, function(err, client, done){
     if (err){
+      res.json({
+        "errors": ['DB error']
+      });
+      res.end();
       done();
       return console.error('error fetching client from pool', err);
     }
@@ -87,7 +97,9 @@ app.post('/location', function(req, res){
       responseJSON.killed = row.killed;
       updateUser(client, userStub).catch(function(err){
         console.error('error executing query', err);
-        res.status(500);
+        res.json({
+          "errors": ['DB error']
+        });
         res.end();
       })
       .then(function(){
@@ -97,7 +109,9 @@ app.post('/location', function(req, res){
     .catch(function(err){
       createUser(client, userStub).catch(function(err){
         console.error('error executing query', err);
-        res.status(500);
+        res.json({
+          "errors": ['DB error']
+        });
         res.end();
       })
       .then(function(){
@@ -122,21 +136,21 @@ app.post('/location', function(req, res){
 
 app.post('/create', function(req, res){
   let profile = req.profile;
-  if (!profile){
-    res.status(400);
-    res.end();
-    return;
-  }
   let it = new classes.It();
   pg.connect(credentials.DATABASE_URL, function(err, client, done){
     if (err){
+      res.json({
+        "errors": ['DB error']
+      });
+      res.end();
       done();
       return console.error('error fetching client from pool', err);
     }
     getUser(client, profile.sub).then(function(result){
       if (!result.rows.length){
-        res.status(500);
-        res.end();
+        res.json({
+          "errors": ['No user with that token']
+        });
         return;
       }
       let row = result.rows[0];
@@ -161,26 +175,30 @@ app.post('/create', function(req, res){
         name: row.name,
         time: new Date().getTime()
       });
-      createIt(client, it)
+      let promises = [];
+      promises.push(createIt(client, it)
       .then(function(){
-        res.status(200);
+        res.json({
+          "id": it.uuid
+        });
         its[it.uuid] = it;
       })
       .catch(function(err){
         console.error('error executing query', err);
-        res.status(500);
-      })
-      .then(function(){
-        res.end();
-        done();
-      });
+        res.json({
+          "errors": ['DB error']
+        });
+      }));
+      return Promise.all(promises);
     })
     .catch(function(err){
       console.error('error executing query', err);
-      res.status(500);
-      res.end();
+      res.json({
+        "errors": ['DB error']
+      });
     })
     .then(function(){
+      res.end();
       done();
     });
   });
@@ -188,23 +206,24 @@ app.post('/create', function(req, res){
 
 app.post('/infect', function(req, res){
   let profile = req.profile;
-  if (!profile){
-    res.status(400);
-    res.end();
-    return;
-  }
   let id = req.body.id;
   let first;
   let second = new classes.User(profile);
   pg.connect(credentials.DATABASE_URL, function(err, client, done){
     if (err){
+      res.json({
+        "errors": ['DB error']
+      });
+      res.end();
       done();
       return console.error('error fetching client from pool', err);
     }
-    getUser(client, id).then(function(result){
+    let promises = [];
+    promises.push(getUser(client, id).then(function(result){
       if (!result.rows.length){
-        res.status(400);
-        res.end();
+        res.json({
+          "errors": ['No user with that id']
+        });
         return;
       }
       first = result.rows[0];
@@ -236,15 +255,27 @@ app.post('/infect', function(req, res){
           promises.push(updateIt(client, it));
         }
       }
-      Promise.all(promises).then(done, done);
+      return Promise.all(promises).then(function(){
+        res.json({
+          "success": true
+        });
+      }, function(err){
+        res.json({
+          "errors": [err]
+        });
+      });
     })
     .catch(function(err){
       console.error('error executing query', err);
-      res.status(500);
+      res.json({
+        "errors": ['DB error']
+      });
     })
     .then(function(){
       res.end();
-    });
+      done();
+    }));
+    return Promise.all(promises);
   });
 });
 
