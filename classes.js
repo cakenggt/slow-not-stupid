@@ -5,6 +5,16 @@ let uuid = require('node-uuid');
 
 const SPEED_PER_TICK = 84;//meters/5minutes
 
+class User {
+  constructor(profile){
+    this.id = profile.sub;
+    this.name = profile.name;
+    this.killed = 0;
+    this.lat = 0;
+    this.lon = 0;
+  }
+}
+
 class It {
   constructor(des){
     if (des){
@@ -122,3 +132,4 @@ function toDegrees(num){
 }
 
 exports.It = It;
+exports.User = User;

@@ -14,7 +14,7 @@ const argv = require('yargs').argv;
 const KILL_DISTANCE = 5;
 const IT_TIME_STEP = 300000;
 
-const its = [];
+const its = {};
 
 // parse application/x-www-form-urlencoded
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -105,8 +105,9 @@ app.post('/location', function(req, res){
           done();
         });
       }
-      for (let i = 0; i < its.length; i++){
-        let it = its[i];
+      let keys = Object.keys(its);
+      for (let i = 0; i < keys.length; i++){
+        let it = its[keys[i]];
         if (it.isFollowing(userStub) &&
             it.getDistanceToUser(userStub) < KILL_DISTANCE){
           responseJSON.nearby = it.getRandomName();
@@ -178,7 +179,7 @@ app.post('/create', function(req, res){
         }
         res.status(200);
         res.end();
-        its.push(it);
+        its[it.uuid] = it;
         done();
       });
     });
@@ -193,29 +194,51 @@ app.post('/infect', function(req, res){
     return;
   }
   let id = req.body.id;
-  let user = {id: id};
+  let first;
+  let second = new classes.User(profile);
   pg.connect(credentials.DATABASE_URL, function(err, client, done){
     if (err){
       done();
       return console.error('error fetching client from pool', err);
     }
-    let promises = [];
-    for (let i = 0; i < its.length; i++){
-      let it = its[i];
-      if (it.isFollowing(user)){
-        it.chain.push({
-          id: profile.sub,
-          name: profile.name,
-          time: new Date().getTime()
-        });
-        promises.push(updateIt(client, it));
+    getUser(client, id, function(err, result){
+      if (err || !result.rows.length){
+        res.status(400);
+        res.end();
+        return;
       }
-    }
-    Promise.all(promises).then(function(){
-      done();
+      first = result.rows[0];
+    }).then(function(){
+      let promises = [];
+      let keys = Object.keys(its);
+      for (let i = 0; i < keys.length; i++){
+        let it = its[keys[i]];
+        let isFollowingFirst = it.isFollowing(first);
+        let isFollowingSecond = it.isFollowing(second);
+        if (isFollowingFirst){
+          it.chain.push({
+            id: second.id,
+            name: second.name,
+            time: new Date().getTime()
+          });
+        }
+        if (isFollowingSecond){
+          it.chain.push({
+            id: first.id,
+            name: first.name,
+            time: new Date().getTime()
+          });
+        }
+        if (isFollowingFirst || isFollowingSecond){
+          promises.push(updateIt(client, it));
+        }
+      }
+      Promise.all(promises).then(function(){
+        done();
+      });
     });
+    res.end();
   });
-  res.end();
 });
 
 pg.connect(credentials.DATABASE_URL, function(err, client, done){
@@ -232,7 +255,8 @@ pg.connect(credentials.DATABASE_URL, function(err, client, done){
     }
     for (let r = 0; r < result.rows.length; r++){
       let row = result.rows[r];
-      its.push(new classes.It(row));
+      let it = new classes.It(row);
+      its[it.uuid] = it;
     }
     done();
   });
@@ -246,11 +270,16 @@ setInterval(function(){
       return console.error('error fetching client from pool', err);
     }
     let promises = [];
-    for (let i = 0; i < its.length; i++){
-      let it = its[i];
+    let keys = Object.keys(its);
+    for (let i = 0; i < keys.length; i++){
+      let it = its[keys[i]];
       let target = it.getTarget();
       if (target){
-        itLogic(client, it, target, promises);
+        promises.push(itLogic(client, it, target));
+      }
+      else{
+        delete its[it.uuid];
+        promises.push(deleteIt(client, it.uuid));
       }
     }
     Promise.all(promises).then(function(){
@@ -259,7 +288,8 @@ setInterval(function(){
   });
 }, IT_TIME_STEP);
 
-function itLogic(client, it, target, promises){
+function itLogic(client, it, target){
+  let promises = [];
   promises.push(getUser(client, target, function(err, result){
     if (err || !result.rows){
       if (err){
@@ -286,6 +316,7 @@ function itLogic(client, it, target, promises){
     }
     promises.push(updateIt(client, it, simpleErrorLog));
   }));
+  return Promise.all(promises);
 }
 
 function createIt(client, it, callback){
@@ -302,6 +333,14 @@ function updateIt(client, it, callback){
     client.query("update it set lat = $1, lon = $2, chain = $3, killed = $4 "+
     "where uuid = $5", [it.lat, it.lon, JSON.stringify(it.chain),
       JSON.stringify(it.killed), it.uuid], callback);
+    resolve();
+  });
+}
+
+function deleteIt(client, uuid, callback){
+  return new Promise(function(resolve, reject){
+    client.query("delete from it where uuid = $1",
+      [uuid], callback);
     resolve();
   });
 }
