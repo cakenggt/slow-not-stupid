@@ -121,6 +121,22 @@ class It {
       return "Jay";
     }
   }
+
+  hasEncountered(user){
+    for (let k = 0; k < this.killed.length; k++){
+      let kill = this.killed[k];
+      if (user.id === kill.id){
+        return true;
+      }
+    }
+    for (let c = 0; c < this.chain.length; c++){
+      let ch = this.chain[c];
+      if (user.id === ch.id){
+        return true;
+      }
+    }
+    return false;
+  }
 }
 
 function toRadians(num){

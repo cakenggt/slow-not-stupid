@@ -214,22 +214,26 @@ app.post('/infect', function(req, res){
       for (let i = 0; i < keys.length; i++){
         let it = its[keys[i]];
         let isFollowingFirst = it.isFollowing(first);
+        let hasEncounteredFirst = it.hasEncountered(first);
         let isFollowingSecond = it.isFollowing(second);
-        if (isFollowingFirst){
+        let hasEncounteredSecond = it.hasEncountered(second);
+        let addFirstToIt = isFollowingSecond && !hasEncounteredFirst;
+        let addSecondToIt = isFollowingFirst && !hasEncounteredSecond;
+        if (addSecondToIt){
           it.chain.push({
             id: second.id,
             name: second.name,
             time: new Date().getTime()
           });
         }
-        if (isFollowingSecond){
+        if (addFirstToIt){
           it.chain.push({
             id: first.id,
             name: first.name,
             time: new Date().getTime()
           });
         }
-        if (isFollowingFirst || isFollowingSecond){
+        if (addSecondToIt || addFirstToIt){
           promises.push(updateIt(client, it));
         }
       }
