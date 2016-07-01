@@ -22,9 +22,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 //custom middleware
-//TODO the || true makes it always use dev mode, remove this
-//once google signin is supported
-if (argv.DEVELOPMENT || argv.DEV || argv.D || true){
+if (argv.DEVELOPMENT || argv.DEV || argv.D){
   console.log('Starting in Development mode');
   app.use(function(req, res, next){
     req.profile = {
