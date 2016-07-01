@@ -41,6 +41,7 @@ pg.connect(credentials.DATABASE_URL, function(err, client, done){
             return;
           }
           done();
+          pg.end();
         });
       });
     });

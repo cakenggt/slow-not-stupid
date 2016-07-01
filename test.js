@@ -20,4 +20,22 @@ describe('class tests', function(){
     it.chain.push({name: "Ben"});
     expect(it.getRandomName()).to.not.be.empty;
   });
+  it('it following', function(){
+    let it = new classes.It();
+    it.chain.push({
+      id: 'a',
+      name: 'a name',
+      time: new Date().getTime()
+    });
+    expect(it.isFollowing({id: 'a'})).to.be.true;
+  });
+  it('it encounter', function(){
+    let it = new classes.It();
+    it.chain.push({
+      id: 'a',
+      name: 'a name',
+      time: new Date().getTime()
+    });
+    expect(it.hasEncountered({id: 'a'})).to.be.true;
+  });
 });

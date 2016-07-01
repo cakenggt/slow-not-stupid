@@ -52,7 +52,7 @@ class It {
 
   isFollowing(user){
     if (this.chain.length){
-      return this.chain[this.chain.length-1] == user.id;
+      return this.chain[this.chain.length-1].id == user.id;
     }
     else{
       return false;

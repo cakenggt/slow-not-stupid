@@ -73,38 +73,38 @@ app.post('/location', function(req, res){
     lon: req.body.lon,
     killed: 0
   };
+  let responseJSON = {
+    nearby: "",
+    killed: 0
+  };
   pg.connect(credentials.DATABASE_URL, function(err, client, done){
     if (err){
       done();
       return console.error('error fetching client from pool', err);
     }
-    getUser(client, userStub.id, function(err, result){
-      let responseJSON = {
-        nearby: "",
-        killed: 0
-      };
-      if (!err && result.rows.length){
-        let row = result.rows[0];
-        responseJSON.killed = row.killed;
-        updateUser(client, userStub, function(err){
-          if (err){
-            console.error('error executing query', err);
-            res.status(500);
-            res.end();
-          }
-          done();
-        });
-      }
-      else{
-        createUser(client, userStub, function(err){
-          if (err){
-            console.error('error executing query', err);
-            res.status(500);
-            res.end();
-          }
-          done();
-        });
-      }
+    getUser(client, userStub.id).then(function(result){
+      let row = result.rows[0];
+      responseJSON.killed = row.killed;
+      updateUser(client, userStub).catch(function(err){
+        console.error('error executing query', err);
+        res.status(500);
+        res.end();
+      })
+      .then(function(){
+        done();
+      });
+    })
+    .catch(function(err){
+      createUser(client, userStub).catch(function(err){
+        console.error('error executing query', err);
+        res.status(500);
+        res.end();
+      })
+      .then(function(){
+        done();
+      });
+    })
+    .then(function(){
       let keys = Object.keys(its);
       for (let i = 0; i < keys.length; i++){
         let it = its[keys[i]];
@@ -133,18 +133,10 @@ app.post('/create', function(req, res){
       done();
       return console.error('error fetching client from pool', err);
     }
-    getUser(client, profile.sub, function(err, result){
-      if (err){
-        console.error('error executing query', err);
-        res.status(500);
-        res.end();
-        done();
-        return;
-      }
+    getUser(client, profile.sub).then(function(result){
       if (!result.rows.length){
         res.status(500);
         res.end();
-        done();
         return;
       }
       let row = result.rows[0];
@@ -169,19 +161,27 @@ app.post('/create', function(req, res){
         name: row.name,
         time: new Date().getTime()
       });
-      createIt(client, it, function(err){
-        if (err){
-          console.error('error executing query', err);
-          res.status(500);
-          res.end();
-          done();
-          return;
-        }
+      createIt(client, it)
+      .then(function(){
         res.status(200);
-        res.end();
         its[it.uuid] = it;
+      })
+      .catch(function(err){
+        console.error('error executing query', err);
+        res.status(500);
+      })
+      .then(function(){
+        res.end();
         done();
       });
+    })
+    .catch(function(err){
+      console.error('error executing query', err);
+      res.status(500);
+      res.end();
+    })
+    .then(function(){
+      done();
     });
   });
 });
@@ -201,14 +201,13 @@ app.post('/infect', function(req, res){
       done();
       return console.error('error fetching client from pool', err);
     }
-    getUser(client, id, function(err, result){
-      if (err || !result.rows.length){
+    getUser(client, id).then(function(result){
+      if (!result.rows.length){
         res.status(400);
         res.end();
         return;
       }
       first = result.rows[0];
-    }).then(function(){
       let promises = [];
       let keys = Object.keys(its);
       for (let i = 0; i < keys.length; i++){
@@ -237,11 +236,15 @@ app.post('/infect', function(req, res){
           promises.push(updateIt(client, it));
         }
       }
-      Promise.all(promises).then(function(){
-        done();
-      });
+      Promise.all(promises).then(done, done);
+    })
+    .catch(function(err){
+      console.error('error executing query', err);
+      res.status(500);
+    })
+    .then(function(){
+      res.end();
     });
-    res.end();
   });
 });
 
@@ -286,22 +289,15 @@ setInterval(function(){
         promises.push(deleteIt(client, it.uuid));
       }
     }
-    Promise.all(promises).then(function(){
-      done();
-    });
+    Promise.all(promises).then(done, done);
   });
 }, IT_TIME_STEP);
 
 function itLogic(client, it, target){
   let promises = [];
-  promises.push(getUser(client, target, function(err, result){
-    if (err || !result.rows){
-      if (err){
-        console.error('error executing query', err);
-      }
-      if (!result.rows){
-        console.error('No entry for user', target);
-      }
+  promises.push(getUser(client, target).then(function(result){
+    if (!result.rows){
+      console.error('No entry for user', target);
       return;
     }
     let row = result.rows[0];
@@ -319,6 +315,9 @@ function itLogic(client, it, target){
       it.moveTowards(row);
     }
     promises.push(updateIt(client, it, simpleErrorLog));
+  })
+  .catch(function(err){
+    console.error('error executing query', err);
   }));
   return Promise.all(promises);
 }
@@ -327,8 +326,7 @@ function createIt(client, it, callback){
   return new Promise(function(resolve, reject){
     client.query("insert into it (lat, lon, chain, killed, uuid) values "+
     "($1, $2, $3, $4, $5)", [it.lat, it.lon, JSON.stringify(it.chain),
-      JSON.stringify(it.killed), it.uuid], callback);
-    resolve();
+      JSON.stringify(it.killed), it.uuid], pgCallback(resolve, reject));
   });
 }
 
@@ -336,16 +334,14 @@ function updateIt(client, it, callback){
   return new Promise(function(resolve, reject){
     client.query("update it set lat = $1, lon = $2, chain = $3, killed = $4 "+
     "where uuid = $5", [it.lat, it.lon, JSON.stringify(it.chain),
-      JSON.stringify(it.killed), it.uuid], callback);
-    resolve();
+      JSON.stringify(it.killed), it.uuid], pgCallback(resolve, reject));
   });
 }
 
 function deleteIt(client, uuid, callback){
   return new Promise(function(resolve, reject){
     client.query("delete from it where uuid = $1",
-      [uuid], callback);
-    resolve();
+      [uuid], pgCallback(resolve, reject));
   });
 }
 
@@ -353,25 +349,34 @@ function createUser(client, user, callback){
   return new Promise(function(resolve, reject){
     client.query("insert into users (id, name, lat, lon, killed) "+
     "values ($1, $2, $3, $4, $5)",
-    [user.id, user.name, user.lat, user.lon, user.killed], callback);
-    resolve();
+    [user.id, user.name, user.lat, user.lon, user.killed],
+    pgCallback(resolve, reject));
   });
 }
 
 function updateUser(client, user, callback){
   return new Promise(function(resolve, reject){
     client.query("update users set lat = $1, lon = $2, killed = $3 where id = $4",
-    [user.lat, user.lon, user.killed, user.id], callback);
-    resolve();
+    [user.lat, user.lon, user.killed, user.id], pgCallback(resolve, reject));
   });
 }
 
 function getUser(client, id, callback){
   return new Promise(function(resolve, reject){
     client.query("select * from users where id = $1",
-    [id], callback);
-    resolve();
+    [id], pgCallback(resolve, reject));
   });
+}
+
+function pgCallback(resolve, reject){
+  return function(err, result){
+    if (err){
+      reject(err);
+    }
+    else{
+      resolve(result);
+    }
+  };
 }
 
 function simpleErrorLog(err){
