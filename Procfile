@@ -1,1 +1,1 @@
-web: npm start -- -D
+web: npm start
