@@ -405,7 +405,7 @@ setInterval(function(){
       done();
     }).catch(done);
   });
-}, 1000);
+}, 10000);
 
 function scoreboardLogic(client, entry){
   let promises = [];
