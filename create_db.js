@@ -23,7 +23,8 @@ pg.connect(credentials.DATABASE_URL, function(err, client, done){
       "name text, "+
       "lat float, "+
       "lon float, "+
-      "killed int)",
+      "killed int, "+
+      "highscore int)",
       function(err){
         if (err){
           console.error('error', err);

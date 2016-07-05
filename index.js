@@ -36,8 +36,14 @@ if (argv.DEVELOPMENT || argv.DEV || argv.D){
 }
 else{
   app.use(function(req, res, next){
-    if (req.body.token){
-      let token = req.body.token;
+    let token;
+    if (req.method == 'GET'){
+      token = req.query.token;
+    }
+    else{
+      token = req.body.token;
+    }
+    if (token){
       oauth2client.verifyIdToken(token, credentials.APP_CLIENT_ID, function(err, tokenInfo){
         if (!err){
           req.profile = tokenInfo.getPayload();
@@ -52,6 +58,7 @@ else{
       });
     }
     else{
+      console.log(req);
       res.json({
         "errors": ['Missing token']
       });
@@ -79,7 +86,8 @@ app.post('/location', function(req, res){
     name: profile.name || 'Jay Height',
     lat: req.body.lat,
     lon: req.body.lon,
-    killed: 0
+    killed: 0,
+    highscore: 0
   };
   let responseJSON = {
     nearby: "",
@@ -281,6 +289,29 @@ app.post('/infect', function(req, res){
   });
 });
 
+app.get('/scores', function(req, res){
+  pg.connect(credentials.DATABASE_URL, function(err, client, done){
+    if (err){
+      res.json({
+        "errors": ['DB error']
+      });
+      res.end();
+      done();
+      return console.error('error fetching client from pool', err);
+    }
+    getScores(client).then(function(result){
+      let scores = [];
+      for (let r = 0; r < result.rows.length; r++){
+        let row = result.rows[r];
+        scores.push({name: row.name, score: row.highscore});
+      }
+      res.json({scores: scores});
+      res.end();
+      done();
+    });
+  });
+});
+
 pg.connect(credentials.DATABASE_URL, function(err, client, done){
   if (err){
     done();
@@ -355,6 +386,41 @@ function itLogic(client, it, target){
   return Promise.all(promises);
 }
 
+setInterval(function(){
+  pg.connect(credentials.DATABASE_URL, function(err, client, done){
+    if (err){
+      done();
+      return console.error('error fetching client from pool', err);
+    }
+    let promises = [];
+    let keys = Object.keys(its);
+    for (let i = 0; i < keys.length; i++){
+      let it = its[keys[i]];
+      for (let c = 0; c < it.chain.length; c++){
+        let entry = it.chain[c];
+        promises.push(scoreboardLogic(client, entry));
+      }
+    }
+    Promise.all(promises).then(function(){
+      done();
+    }).catch(done);
+  });
+}, 1000);
+
+function scoreboardLogic(client, entry){
+  let promises = [];
+  let userId = entry.id;
+  promises.push(getUser(client, userId).then(function(result){
+    let user = result.rows[0];
+    let now = new Date().getTime();
+    if (now - entry.time > user.highscore){
+      user.highscore = now - entry.time;
+      promises.push(updateUser(client, user).catch(simpleErrorLog));
+    }
+  }).catch(simpleErrorLog));
+  return Promise.all(promises);
+}
+
 function createIt(client, it, callback){
   return new Promise(function(resolve, reject){
     client.query("insert into it (lat, lon, chain, killed, uuid) values "+
@@ -380,17 +446,17 @@ function deleteIt(client, uuid, callback){
 
 function createUser(client, user, callback){
   return new Promise(function(resolve, reject){
-    client.query("insert into users (id, name, lat, lon, killed) "+
-    "values ($1, $2, $3, $4, $5)",
-    [user.id, user.name, user.lat, user.lon, user.killed],
+    client.query("insert into users (id, name, lat, lon, killed, highscore) "+
+    "values ($1, $2, $3, $4, $5, $6)",
+    [user.id, user.name, user.lat, user.lon, user.killed, user.highscore],
     pgCallback(resolve, reject));
   });
 }
 
 function updateUser(client, user, callback){
   return new Promise(function(resolve, reject){
-    client.query("update users set lat = $1, lon = $2, killed = $3 where id = $4",
-    [user.lat, user.lon, user.killed, user.id], pgCallback(resolve, reject));
+    client.query("update users set lat = $1, lon = $2, killed = $3, highscore = $4 where id = $5",
+    [user.lat, user.lon, user.killed, user.highscore, user.id], pgCallback(resolve, reject));
   });
 }
 
@@ -398,6 +464,13 @@ function getUser(client, id, callback){
   return new Promise(function(resolve, reject){
     client.query("select * from users where id = $1",
     [id], pgCallback(resolve, reject));
+  });
+}
+
+function getScores(client){
+  return new Promise(function(resolve, reject){
+    client.query("select name, highscore from users order by highscore desc",
+    [], pgCallback(resolve, reject));
   });
 }
 
