@@ -43,7 +43,7 @@ else{
         }
         else{
           res.json({
-            "errors": ['Invalid token']
+            "errors": ['Invalid token', err.message]
           });
           res.end();
         }
