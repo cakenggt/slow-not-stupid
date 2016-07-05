@@ -118,7 +118,7 @@ class It {
       return list[Math.floor(Math.random()*list.length)].name;
     }
     else{
-      return "Jay";
+      return "Jay Height";
     }
   }
 

@@ -7,7 +7,9 @@ const app = express();
 const bodyParser = require('body-parser');
 const pg = require('pg');
 const http = require('http').Server(app);
-const verifier = require('google-id-token-verifier');
+const GoogleAuth = require('google-auth-library');
+const authFactory = new GoogleAuth();
+const oauth2client = new authFactory.OAuth2();
 const classes = require('./classes');
 const argv = require('yargs').argv;
 
@@ -36,9 +38,9 @@ else{
   app.use(function(req, res, next){
     if (req.body.token){
       let token = req.body.token;
-      verifier.verify(token, credentials.APP_CLIENT_ID, function(err, tokenInfo){
+      oauth2client.verifyIdToken(token, credentials.APP_CLIENT_ID, function(err, tokenInfo){
         if (!err){
-          req.profile = tokenInfo;
+          req.profile = tokenInfo.getPayload();
           next();
         }
         else{
@@ -74,7 +76,7 @@ app.post('/location', function(req, res){
   }
   let userStub = {
     id: profile.sub,
-    name: profile.name || 'Unknown',
+    name: profile.name || 'Jay Height',
     lat: req.body.lat,
     lon: req.body.lon,
     killed: 0
