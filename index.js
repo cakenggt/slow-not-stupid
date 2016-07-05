@@ -156,14 +156,14 @@ app.post('/create', function(req, res){
         return;
       }
       let row = result.rows[0];
-      let lat = row.lat + Math.random()*10-10;
+      let lat = row.lat + Math.random()*4-2;
       if (lat < -180){
         lat = -180;
       }
       else if (lat > 180){
         lat = 180;
       }
-      let lon = row.lon + Math.random()*10-10;
+      let lon = row.lon + Math.random()*4-2;
       if (lon < -180){
         lon = -180;
       }
